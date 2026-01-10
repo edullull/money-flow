@@ -45,6 +45,9 @@ import FinanzasChart from '../components/FinanzasChart.astro';
         </div>
 
         <section>
+          <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+             <h2 style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted);">Historial de movimientos</h2>
+          </div>
           <div id="listado-movimientos" style="display: flex; flex-direction: column; gap: 0.75rem;">
             <p style="text-align: center; color: var(--text-muted);">Cargando historial...</p>
           </div>
@@ -68,7 +71,7 @@ import FinanzasChart from '../components/FinanzasChart.astro';
 
         if (error || !movimientos) return;
 
-        // 1. Balance
+        // 1. Calcular Balance
         let balance = 0;
         movimientos.forEach(m => {
           if (m.tipo === 'ingreso') balance += parseFloat(m.monto);
@@ -81,33 +84,56 @@ import FinanzasChart from '../components/FinanzasChart.astro';
           display.style.color = balance >= 0 ? '#10b981' : '#ef4444';
         }
 
-        // 2. Gráfica (Llamamos a la función global)
+        // 2. Actualizar Gráfica
         if ((window as any).renderFinanceChart) {
           (window as any).renderFinanceChart(movimientos);
         }
 
-        // 3. Lista
+        // 3. Renderizar Lista con botón de eliminar
         const lista = document.getElementById('listado-movimientos');
         if (lista) {
+          if (movimientos.length === 0) {
+            lista.innerHTML = '<p style="text-align: center; color: var(--text-muted);">No hay movimientos.</p>';
+            return;
+          }
+
           lista.innerHTML = movimientos.map(m => `
             <div class="blog-card" style="padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid ${m.tipo === 'ingreso' ? '#10b981' : '#ef4444'}">
               <div>
                 <div style="font-weight: 600; color: #1e293b;">${m.nombre}</div>
                 <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase;">${m.categoria}</div>
               </div>
-              <div style="text-align: right; display: flex; align-items: center; gap: 15px;">
-                <div>
-                    <div style="color: ${m.tipo === 'ingreso' ? '#10b981' : '#ef4444'}; font-weight: 700;">
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="text-align: right;">
+                  <div style="color: ${m.tipo === 'ingreso' ? '#10b981' : '#ef4444'}; font-weight: 700;">
                     ${m.tipo === 'ingreso' ? '+' : '-'}${parseFloat(m.monto).toFixed(2)}€
-                    </div>
-                    <div style="font-size: 0.7rem; color: #94a3b8;">${new Date(m.created_at).toLocaleDateString()}</div>
+                  </div>
+                  <div style="font-size: 0.7rem; color: #94a3b8;">${new Date(m.created_at).toLocaleDateString()}</div>
                 </div>
+                <button class="btn-delete" data-id="${m.id}" style="background: none; border: none; color: #cbd5e1; cursor: pointer; padding: 5px; transition: color 0.2s;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></button>
               </div>
             </div>
           `).join('');
+
+          // Agregar eventos a los botones de eliminar
+          lista.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const id = btn.getAttribute('data-id');
+              if (confirm('¿Eliminar esta transacción?')) {
+                const { error: delError } = await supabase.from('transacciones').delete().eq('id', id);
+                if (!delError) {
+                  await actualizarDashboard();
+                } else {
+                  alert('Error al eliminar');
+                }
+              }
+            });
+          });
         }
       }
 
+      // Evento del formulario
       document.getElementById('money-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('btn-save') as HTMLButtonElement;
@@ -128,5 +154,12 @@ import FinanzasChart from '../components/FinanzasChart.astro';
 
       actualizarDashboard();
     </script>
+    
+    <style>
+      /* Efecto hover para el icono de papelera */
+      .btn-delete:hover {
+        color: #ef4444 !important;
+      }
+    </style>
   </body>
 </html>
